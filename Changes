@@ -2,4 +2,6 @@ Revision history for CGI-List
 
 0.01    2007/10/17
         First version, released on an unsuspecting world.
+0.02    2007/10/18
+        make test cerrection for mandatory modules.
 

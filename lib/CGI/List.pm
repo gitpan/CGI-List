@@ -17,7 +17,7 @@ Version 0.01
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 sub new {
     my $class    = shift;
@@ -1011,7 +1011,7 @@ This example provides an list of data with auto order, auto pagination and actio
 
 =head1 AUTHOR
 
-David Romero García, C<< <romdav at gmail.com> >>
+David Romero Garcia, C<< <romdav at gmail.com> >>
 
 =head1 BUGS
 
@@ -1028,6 +1028,8 @@ You can find documentation for this module with the perldoc command.
     perldoc CGI::List
 
 You can also look for information at:
+
+L<http://groups.google.com/group/cgilist>.
 
 =over 4
 
