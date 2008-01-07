@@ -4,7 +4,7 @@ use ExtUtils::MakeMaker;
 
 WriteMakefile(
     NAME                => 'CGI::List',
-    AUTHOR              => 'David Romero García <romdav@gmail.com>',
+    AUTHOR              => 'David Romero Garcia <romdav@gmail.com>',
     VERSION_FROM        => 'lib/CGI/List.pm',
     ABSTRACT_FROM       => 'lib/CGI/List.pm',
     PREREQ_PM => {

@@ -1,7 +1,7 @@
 package CGI::List;
 
-use warnings;
 use strict;
+use Carp qw(croak carp);
 
 require 5.004;
 use CGI qw/:standard *table/;
@@ -13,11 +13,11 @@ CGI::List - Easily generate HTML Lists From a DataBase
 
 =head1 VERSION
 
-Version 0.01
+Version 0.03
 
 =cut
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 sub new {
     my $class    = shift;
@@ -32,11 +32,13 @@ sub new {
     defined param("cg_page")  or param(-name=>"cg_page", -value=>"1");
 
     #Prevent attacks
-    param(-name=>"cg_order",-value=>int(param("cg_order")));
-    param(-name=>"cg_page",-value=>int(param("cg_page")));
+    param(-name=>"cg_order",-value=>int(param("cg_order") || 0));
+    param(-name=>"cg_page",-value=>int(param("cg_page") || 0));
 
     #Predefined values
-    $self->{name} = "cg_grid";
+    $self->{name} = "cg_list";
+    $self->{debug} = 0;
+    $self->{on_errors} = "print";
     $self->{auto_order} = 1;
     $self->{pagination} = 1;
     $self->{nav_pages}  = 4;
@@ -102,8 +104,7 @@ sub new {
     $self->{transit_params} = "";
     $self->{cgi_cg_params} = "";
 
-
-#    $self->{col_labels} = {};
+    $self->{link}{event} = "onClick" if($self->{link} and !$self->{link}{event});
 
     return $self;
 }
@@ -114,7 +115,7 @@ sub print {
 
     $self->transit_params();
     if(!defined $self->{rs}){
-		$self->get_data();
+	$grid .= $self->get_data();
     }
 
     $self->{table}{id} = 'cg_table_' . $self->{name};
@@ -155,15 +156,40 @@ sub get_data {
     $self->build_query();
 
     $self->{sth} = $self->{dbh}->prepare($self->{sql}{query});
-    if($self->{sql}{params}){
-	$self->{sth}->execute(@{$self->{sql}{params}});
-    }else{
-	$self->{sth}->execute();
-    }
+    eval {
+	if($self->{sql}{params}){
+	    $self->{sth}->execute(@{$self->{sql}{params}});
+	}else{
+	    $self->{sth}->execute();
+	}
+    };
     #if sql errors
-    if ( defined $self->{dbh}->errstr ) {
-#		return $CGI::Grid::error = "CGI::Grid Error code: " . $self->{dbh}->err . ". Error message: " . $self->{dbh}->errstr . " SQL: " . $self->{sql}{query};
-		return "CGI::Grid Error code: " . $self->{dbh}->err . ". Error message: " . $self->{dbh}->errstr . " SQL: " . $self->{sql}{query};
+    if($@){
+	if($self->{on_errors} eq "die"){
+	    if($self->{debug}){
+		croak "CGI::List Error code: ".$self->{dbh}->err.". Error message: ".$self->{dbh}->errstr . " SQL: " . $self->{sql}{query};
+	    }else{
+		croak "CGI::List Error code: " . $self->{dbh}->err . ". Error message: " . $self->{dbh}->errstr;
+	    }
+	    return "";
+	}elsif($self->{on_errors} eq "warn"){
+	    if($self->{debug}){
+		carp "CGI::List Error code: ".$self->{dbh}->err.". Error message: ".$self->{dbh}->errstr . " SQL: " . $self->{sql}{query};
+	    }else{
+		carp "CGI::List Error code: " . $self->{dbh}->err . ". Error message: " . $self->{dbh}->errstr;
+	    }
+	    return "";
+	}elsif($self->{on_errors} eq "print"){
+	    if($self->{debug}){
+		return "CGI::List Error code: " . $self->{dbh}->err .". Error message: ".$self->{dbh}->errstr." SQL: ".$self->{sql}{query};
+	    }else{
+		return "CGI::List Error code: " . $self->{dbh}->err .". Error message: ".$self->{dbh}->errstr;
+	    }
+	}
+#    }
+#
+#    if ( defined $self->{dbh}->errstr ) {
+#		
     }else{
 	while ( my $rec = $self->{sth}->fetchrow_hashref() ) {
 	    push (@{$self->{rs}},$rec);
@@ -204,6 +230,16 @@ sub build_query {
 sub print_columns {
     my $self = shift;
     $self->get_columns();
+    if (defined $self->{columns_headers_align}){
+	my $HTML = "";
+	my $it = 0;
+	foreach my $label (@{$self->{columns}{labels}}){
+	    $self->{th}{params}{align} = $self->{columns_headers_align}[$it];
+	    $HTML .= th($self->{th}{params},$label) . "\n";
+	    $it++;
+	}
+	return "   " . Tr ($self->{columns}{params},$HTML);
+    };
     return "   " . Tr ($self->{columns}{params},[th($self->{th}{params},$self->{columns}{labels})]) . "\n";
 }
 
@@ -211,7 +247,7 @@ sub get_columns {
     my $self = shift;
     $self->{columns}{names} = ();
     $self->{columns}{labels} = ();
-    $self->{colspan} = ($self->{sth}->{NUM_OF_FIELDS});
+    $self->{colspan} = ($self->{sth}->{NUM_OF_FIELDS}) || 0;
     foreach my $i(0 .. ($self->{colspan} - 1)) {
 	defined $self->{sth}->{NAME}->[$i] or $self->{sth}->{NAME}->[$i] = "";
 	if ($self->{sth}->{NAME}->[$i] and !($self->{link}{hidde_key_col} and $self->{sth}->{NAME}->[$i] eq $self->{link}{key})){
@@ -307,13 +343,13 @@ sub print_detail {
 #Links
 	if($self->{link}){
 	    if($self->{link}{target}){
-		$self->{detail}{Tr}{$row_params}{onClick} = "window.open('" . $self->{link}{location} . "?" . $self->{link}{key} . "=" . $rec->{$self->{link}{key}} . "$self->{transit_params}','" . $self->{key}{target} . "','" . $self->{nw_params} . "');";
+		$self->{detail}{Tr}{$row_params}{$self->{link}{event}} = "window.open('" . $self->{link}{location} . "?" . $self->{link}{key} . "=" . $rec->{$self->{link}{key}} . "$self->{transit_params}','" . $self->{key}{target} . "','" . $self->{nw_params} . "');";
 	    }elsif($self->{opener}){
 		my $opener_transit_params = $self->{transit_params};
 		$opener_transit_params =~ s/opener=[\w]*//g;
-		$self->{detail}{Tr}{$row_params}{onClick} = "opener.location.href='" . $self->{opener} . "?" . $self->{link}{key} . "=" . $rec->{$self->{link}{key}} . "$opener_transit_params'; window.close();";
+		$self->{detail}{Tr}{$row_params}{$self->{link}{event}} = "opener.location.href='" . $self->{opener} . "?" . $self->{link}{key} . "=" . $rec->{$self->{link}{key}} . "$opener_transit_params'; window.close();";
 	    }elsif($self->{link}{location}){
-		$self->{detail}{Tr}{$row_params}{onClick} = "document.location.href='" . $self->{link}{location} . "?" . $self->{link}{key} . "=" . $rec->{$self->{link}{key}} . "$self->{transit_params}';";
+		$self->{detail}{Tr}{$row_params}{$self->{link}{event}} = "document.location.href='" . $self->{link}{location} . "?" . $self->{link}{key} . "=" . $rec->{$self->{link}{key}} . "$self->{transit_params}';";
 	    }
 	}
 	$HTML .= "   " . Tr ($self->{detail}{Tr}{$row_params},$row_cells) . "\n";
@@ -549,13 +585,13 @@ sub print_group_detail {
 # #Links
  	if($self->{link}){
  	    if($self->{link}{target}){
- 		$self->{detail}{Tr}{$row_params}{onClick} = "window.open('" . $self->{link}{location} . "?" . $self->{link}{key} . "=" . $rec->{$self->{link}{key}} . "$self->{transit_params}','" . $self->{key}{target} . "','" . $self->{nw_params} . "');";
+ 		$self->{detail}{Tr}{$row_params}{$self->{link}{event}} = "window.open('" . $self->{link}{location} . "?" . $self->{link}{key} . "=" . $rec->{$self->{link}{key}} . "$self->{transit_params}','" . $self->{key}{target} . "','" . $self->{nw_params} . "');";
  	    }elsif($self->{opener}){
  		my $opener_transit_params = $self->{transit_params};
  		$opener_transit_params =~ s/opener=[\w]*//g;
- 		$self->{detail}{Tr}{$row_params}{onClick} = "opener.location.href='" . $self->{opener} . "?" . $self->{link}{key} . "=" . $rec->{$self->{link}{key}} . "$opener_transit_params'; window.close();";
+ 		$self->{detail}{Tr}{$row_params}{$self->{link}{event}} = "opener.location.href='" . $self->{opener} . "?" . $self->{link}{key} . "=" . $rec->{$self->{link}{key}} . "$opener_transit_params'; window.close();";
  	    }elsif($self->{link}{location}){
- 		$self->{detail}{Tr}{$row_params}{onClick} = "document.location.href='" . $self->{link}{location} . "?" . $self->{link}{key} . "=" . $rec->{$self->{link}{key}} . "$self->{transit_params}';";
+ 		$self->{detail}{Tr}{$row_params}{$self->{link}{event}} = "document.location.href='" . $self->{link}{location} . "?" . $self->{link}{key} . "=" . $rec->{$self->{link}{key}} . "$self->{transit_params}';";
  	    }
  	}
  	$HTML .= "   " . Tr ($self->{detail}{Tr}{$row_params},$row_cells) . "\n";
@@ -872,7 +908,14 @@ Perhaps a little code snippet.
     #Create List Object
     $list = CGI::List->new(
 	dbh => $dbh,
-	sql => "SELECT * FROM foot",
+        sql => {
+            select => "foo, bar ",
+            from => "table1",
+            limit => "20",
+            where => "some_column1=? AND some_column2=?",
+            params=>["Value1","Value2"],
+            order_by => "foo DESC",
+       },
     );
 
     #Print 
@@ -880,17 +923,18 @@ Perhaps a little code snippet.
 
 =head1 FEATURES
 
+    * Auto Order
+    * Auto Pagination
     * CSS based. Contact developer for CSS examples 
     * Column totals(Only SUM, COUNT and AVG are supported)
     * Conditional formats for rows
     * Conditional Formats for cells
     * Auto detect column names
-    * Auto Order
-    * Auto Pagination
     * 2 row formats for better visualization
     * Row grouping
     * Http Link and highlight on rows based in rows keys
     * Opener action for pop up windows
+    * And more
 
 =head1 METHODS
 
@@ -898,14 +942,16 @@ Perhaps a little code snippet.
 
 This method creates a new $list object, which you then use to generate and process your list.
 
-    my $list = CGI::List->new(dbh=>$dbh,
-       sql => "SELECT * FROM foot");
+    my $list = CGI::List->new();
 
 	The following is a description of each option, in alphabetical order:
 
 	name => 'list_name'
-    If you use a multi lists pages you need to specify a name for each list
-
+            If you use a multi lists pages you need to specify a name for each list
+	on_errors => 'print',
+	    If you have SQL errors you can print(default), warn or die
+        debug => 0 | 1, default 0
+            If is set to 1 this print the query executed on SQL errors
 	caption => 'list title'
 	    This create a list title with the caption html tag
 	auto_order => 1 | 0,   default 1
@@ -914,10 +960,27 @@ This method creates a new $list object, which you then use to generate and proce
 	    Enable or disable auto pagination on the list
 	nav_pages => $number, default 4
 	    Number of pages you can see on pagination
+        Number_Format => {THOUSANDS_SEP=>",",DECIMAL_POINT=>".",MON_THOUSANDS_SEP=>",","MON_DECIMAL_POINT"=>".","INT_CURR_SYMBOL"=>'$'};
+            On SUM otions you can format the result to price ($1,234.00), whit this parameters THOUSANDS_SEP, DECIMAL_POINT, MON_THOUSANDS_SEP, MON_DECIMAL_POINT, INT_CURR_SYMBOL.
+
+        table => {}
+            Propiedades de la tabla, default {width => "100%",class => "cg_table",align => "center",cellpadding=>"0",cellspacing=>"0"}
+        labels => {
+		       page_of => 'Page _PAGE_ of _OF_',
+		       no_data   => 'No records found',
+		       link_up   => '&uarr;',
+		       link_down => '&darr;',
+		       next_page => '&raquo;',
+		       previous_page => '&laquo;',
+		       number_of_rows => "_NUMBER_ rows",
+		      };
+            This are the text printed on the list, you can traslate to other language
+
+
 
 =head2 print()
 
-This function renders the grid into HTML, and returns a string containing the grid. 
+This function renders the list into HTML, and returns a string containing the list.
 
     print $list->print;
 
@@ -931,15 +994,15 @@ This method Create groups of data:
 
 This method calculate row totals on each group:
 
-    $list->total(key=>'key_field',type=>"MATH",operation=>'SUM',label=>"%% some text");
-Operation support only SUM, AVG, and COUNT 
+    $list->group_total(key=>'key_field',type=>"MATH",operation=>'SUM',label=>"%% some text",format=>'price');
+Operation support only SUM, AVG, and COUNT, the format parameter are optional
 
 =head2 total()
 
 This method calculate row totals:
 
-    $list->total(key=>'key_field',type=>"MATH",operation=>'SUM',label=>"%% some text");
-Operation suport only SUM, AVG, and COUNT 
+    $list->total(key=>'key_field',type=>"MATH",operation=>'SUM',label=>"%% some text",format=>'price');
+Operation suport only SUM, AVG, and COUNT, the format parameter are optional
 
 =head2 row_format()
 
@@ -987,7 +1050,7 @@ On this example you have a 3 columns query and left, center, right are the align
 
 This example provides an list of data with auto order, auto pagination and action on each row click
 
-    my $list = CGI::Grid->new( 
+    my $list = CGI::List->new( 
                   dbh => $dbh,
                   name => "pays_list",
                   sql => {
@@ -1012,6 +1075,10 @@ This example provides an list of data with auto order, auto pagination and actio
 =head1 AUTHOR
 
 David Romero Garcia, C<< <romdav at gmail.com> >>
+
+=head1 COLABORATORS
+
+Juan C. Sanchez-DelBarrio
 
 =head1 BUGS
 

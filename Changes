@@ -5,3 +5,7 @@ Revision history for CGI-List
 0.02    2007/10/18
         make test cerrection for mandatory modules.
 
+0.03    2008/01/07
+	Carp implementation for SQL errors
+	Support for custom events (onClick, onDblClick)
+	columns_headers_align function bug fix
