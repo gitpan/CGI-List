@@ -1,4 +1,4 @@
-CGI-List 0.03
+CGI-List 0.04
 
 Easy generate full featured web list from a database.
 
@@ -20,8 +20,8 @@ After installing, you can find documentation for this module with the perldoc co
 
 You can also look for information at:
 
-	Discution Group
-	http://groups.google.com/group/cgilist
+    Home Page
+	http://www.cgi-list.com
 
     Search CPAN
         http://search.cpan.org/dist/CGI-List

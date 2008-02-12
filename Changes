@@ -9,3 +9,8 @@ Revision history for CGI-List
 	Carp implementation for SQL errors
 	Support for custom events (onClick, onDblClick)
 	columns_headers_align function bug fix
+
+0.04	2008/02/11
+	Correct columns_align function to work properly
+	
+

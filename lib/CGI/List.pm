@@ -13,11 +13,11 @@ CGI::List - Easily generate HTML Lists From a DataBase
 
 =head1 VERSION
 
-Version 0.03
+Version 0.04
 
 =cut
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 sub new {
     my $class    = shift;
@@ -230,11 +230,12 @@ sub build_query {
 sub print_columns {
     my $self = shift;
     $self->get_columns();
-    if (defined $self->{columns_headers_align}){
+    if (defined $self->{columns_width} or defined $self->{columns_headers_align}){
 	my $HTML = "";
 	my $it = 0;
 	foreach my $label (@{$self->{columns}{labels}}){
-	    $self->{th}{params}{align} = $self->{columns_headers_align}[$it];
+	    $self->{th}{params}{width} = $self->{columns_width}[$it] if(defined $self->{columns_width}[$it]);
+	    $self->{th}{params}{align} = $self->{columns_headers_align}[$it] if(defined $self->{columns_headers_align}[$it]);
 	    $HTML .= th($self->{th}{params},$label) . "\n";
 	    $it++;
 	}
@@ -1008,18 +1009,18 @@ Operation suport only SUM, AVG, and COUNT, the format parameter are optional
 
 This function specify a format of row depending on their value
 
-    $list->row_format(name=>"field_name",condition=>"'%%' eq 'urgent'",params=>{class=>"cl_row_urgent"});
+    $list->row_format(name=>"field_name",condition=>"'%%' eq 'urgent'",params=>{class=>"cg_row_urgent"});
 
-%% is the cell value, on this example you need to create 2 css class cl_row_urgent and cl_row_urgent_hover 
+%% is the cell value, on this example you need to create 2 css class cg_row_urgent and cg_row_urgent_hover 
 for the hover action
 	
 =head2 cell_format();
 
 This function specify a format of cell depending on their value
 
-    $list->cell_format(name=>"field_name",condition=>"'%%' eq 'urgent'",params=>{class=>"cl_cell_urgent"});
+    $list->cell_format(name=>"field_name",condition=>"'%%' eq 'urgent'",params=>{class=>"cg_cell_urgent"});
 
-%% is the cell value, on this example you need to create 2 css class cl_cell_urgent and cl_cell_urgent_hover 
+%% is the cell value, on this example you need to create 2 css class cg_cell_urgent and cg_cell_urgent_hover 
 for the hover action
 
 =head2 columns_width()
