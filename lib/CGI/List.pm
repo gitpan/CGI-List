@@ -13,11 +13,11 @@ CGI::List - Easily generate HTML Lists From a DataBase
 
 =head1 VERSION
 
-Version 0.04
+Version 0.05
 
 =cut
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 sub new {
     my $class    = shift;
@@ -74,6 +74,8 @@ sub new {
 
     $self->{nw_params}="width=600,height=500,toolbar=no,scrollbars=yes,top='+((screen.height/2)-250)+',left='+((screen.width/2)-300)+'";
 
+    $self->{orders} = {};
+
     $self->{labels} = {
 		       page_of => 'Page _PAGE_ of _OF_',
 		       no_data   => 'No records found',
@@ -94,11 +96,11 @@ sub new {
 
     #Order params and Query
     if ($self->{auto_order} and param('cg_order') and param('cg_list') eq $self->{name}){
-		if(param("cg_order") =~ /\w+/){
-		    $self->{sql}{order_by}  = param("cg_order");
-		    $self->{sql}{order_by} .= " DESC  " if (param("cg_side"));
-		    $self->{sql}{order_by} .= " ASC  " if (!param("cg_side"));
-		}
+	if(param("cg_order") =~ /\w+/){
+	    $self->{sql}{order_by}  = param("cg_order");
+	    $self->{sql}{order_by} .= " DESC  " if (param("cg_side"));
+	    $self->{sql}{order_by} .= " ASC  " if (!param("cg_side"));
+	}
     }
 
     $self->{transit_params} = "";
@@ -195,6 +197,7 @@ sub get_data {
 	    push (@{$self->{rs}},$rec);
 	}
     }
+    return "";
 }
 
 sub build_query {
@@ -230,8 +233,21 @@ sub build_query {
 sub print_columns {
     my $self = shift;
     $self->get_columns();
-    if (defined $self->{columns_width} or defined $self->{columns_headers_align}){
+    if(defined $self->{headers_groups}){
 	my $HTML = "";
+	$self->{th}{params}{align} = "center";
+	foreach my $hgroup (@{$self->{headers_groups}}){
+	    if(ref $hgroup eq "HASH" ){
+		$self->{th}{params}{colspan} = $hgroup->{colspan};
+		$HTML .= th($self->{th}{params},$hgroup->{label}) . "\n";
+		undef $self->{th}{params}{colspan};
+	    }else{
+		$HTML .= th($self->{th}{params},"") . "\n";
+	    }
+	}
+	my $line1 = Tr ($self->{columns}{params},$HTML);
+	$HTML = "";
+	undef 	$self->{th}{params}{align};
 	my $it = 0;
 	foreach my $label (@{$self->{columns}{labels}}){
 	    $self->{th}{params}{width} = $self->{columns_width}[$it] if(defined $self->{columns_width}[$it]);
@@ -239,9 +255,21 @@ sub print_columns {
 	    $HTML .= th($self->{th}{params},$label) . "\n";
 	    $it++;
 	}
-	return "   " . Tr ($self->{columns}{params},$HTML);
-    };
-    return "   " . Tr ($self->{columns}{params},[th($self->{th}{params},$self->{columns}{labels})]) . "\n";
+	return $line1 . "\n   " . Tr ($self->{columns}{params},$HTML);
+    }else{
+	if (defined $self->{columns_width} or defined $self->{columns_headers_align}){
+	    my $HTML = "";
+	    my $it = 0;
+	    foreach my $label (@{$self->{columns}{labels}}){
+		$self->{th}{params}{width} = $self->{columns_width}[$it] if(defined $self->{columns_width}[$it]);
+		$self->{th}{params}{align} = $self->{columns_headers_align}[$it] if(defined $self->{columns_headers_align}[$it]);
+		$HTML .= th($self->{th}{params},$label) . "\n";
+		$it++;
+	    }
+	    return "   " . Tr ($self->{columns}{params},$HTML);
+	};
+	return "   " . Tr ($self->{columns}{params},[th($self->{th}{params},$self->{columns}{labels})]) . "\n";
+    }
 }
 
 sub get_columns {
@@ -881,18 +909,34 @@ sub group_AVG {
 		$it++;
 		$avg += $rec->{$field};
     }
-    
+
     eval {
 		$avg = $avg / $it; 
     };
-    
+
     if($@){
 		$avg = "";
     }
-    
+
     $avg = neares(.01,$avg);
     return $avg;
 }
+
+sub headers_groups {
+    my $self = shift;
+    $self->{headers_groups} = shift;
+}
+
+sub orders {
+    my $self = shift;
+    $self->{orders} = shift;
+    if($self->{orders}->{param("cg_order")}){
+	$self->{sql}{order_by} = $self->{orders}->{param("cg_order")};
+	$self->{sql}{order_by} .= " DESC  " if (param("cg_side"));
+	$self->{sql}{order_by} .= " ASC  " if (!param("cg_side"));
+    }
+}
+
 
 
 =head1 SYNOPSIS
@@ -1097,6 +1141,7 @@ You can find documentation for this module with the perldoc command.
 
 You can also look for information at:
 
+L<http://www.cgi-list.com>.
 L<http://groups.google.com/group/cgilist>.
 
 =over 4

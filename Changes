@@ -12,5 +12,7 @@ Revision history for CGI-List
 
 0.04	2008/02/11
 	Correct columns_align function to work properly
-	
 
+0.05    2008/08/14
+        Add support for custom orders
+	Add support for uper group headers
